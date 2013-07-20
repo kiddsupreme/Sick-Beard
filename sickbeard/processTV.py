@@ -20,6 +20,7 @@ from __future__ import with_statement
 
 import os
 import shutil
+import time
 
 import sickbeard 
 from sickbeard import postProcessor
@@ -102,6 +103,12 @@ def processDir (dirName, nzbName=None, recurse=False):
     for cur_video_file_path in videoFiles:
 
         cur_video_file_path = ek.ek(os.path.join, dirName, cur_video_file_path)
+
+        # ignore if file was modified within 60 seconds. it might still be being written to.
+        ctime = os.path.getctime(cur_video_file_path)
+        if ctime > time.time() - 60:
+            returnStr += logHelper(u"File might still be being written to (modified %s). Ignoring for now: %s" % (time.ctime(ctime), cur_video_file_path))
+            return returnStr
 
         try:
             processor = postProcessor.PostProcessor(cur_video_file_path, nzbName)
