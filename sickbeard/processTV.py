@@ -35,7 +35,7 @@ def logHelper (logMessage, logLevel=logger.MESSAGE):
     logger.log(logMessage, logLevel)
     return logMessage + u"\n"
 
-def processDir (dirName, nzbName=None, recurse=False):
+def processDir (dirName, nzbName=None, recurse=False, check_ctime=False):
     """
     Scans through the files in dirName and processes whatever media files it finds
     
@@ -91,7 +91,7 @@ def processDir (dirName, nzbName=None, recurse=False):
     # recursively process all the folders
     for curFolder in folders:
         returnStr += logHelper(u"Recursively processing a folder: "+curFolder, logger.DEBUG)
-        returnStr += processDir(ek.ek(os.path.join, dirName, curFolder), recurse=True)
+        returnStr += processDir(ek.ek(os.path.join, dirName, curFolder), recurse=True, check_ctime=check_ctime)
 
     remainingFolders = filter(lambda x: ek.ek(os.path.isdir, ek.ek(os.path.join, dirName, x)), fileList)
 
@@ -104,11 +104,12 @@ def processDir (dirName, nzbName=None, recurse=False):
 
         cur_video_file_path = ek.ek(os.path.join, dirName, cur_video_file_path)
 
-        # ignore if file was modified within 60 seconds. it might still be being written to.
-        ctime = os.path.getctime(cur_video_file_path)
-        if ctime > time.time() - 60:
-            returnStr += logHelper(u"File might still be being written to (modified %s). Ignoring for now: %s" % (time.ctime(ctime), cur_video_file_path))
-            return returnStr
+        if check_ctime:
+            # ignore if file was modified within 60 seconds. it might still be being written to.
+            ctime = max(os.path.getctime(cur_video_file_path), os.path.getmtime(cur_video_file_path))
+            if ctime > time.time() - 60:
+                returnStr += logHelper(u"File might still be being written to (modified %s). Ignoring for now: %s" % (time.ctime(ctime), cur_video_file_path))
+                return returnStr
 
         try:
             processor = postProcessor.PostProcessor(cur_video_file_path, nzbName)
