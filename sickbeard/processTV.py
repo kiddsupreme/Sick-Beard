@@ -35,7 +35,7 @@ def logHelper (logMessage, logLevel=logger.MESSAGE):
     logger.log(logMessage, logLevel)
     return logMessage + u"\n"
 
-def processDir (dirName, nzbName=None, recurse=False, check_ctime=False):
+def processDir (dirName, nzbName=None, recurse=False):
     """
     Scans through the files in dirName and processes whatever media files it finds
     
@@ -82,7 +82,19 @@ def processDir (dirName, nzbName=None, recurse=False, check_ctime=False):
             returnStr += logHelper(u"You're trying to post process an episode that's already been moved to its show dir", logger.ERROR)
             return returnStr
 
-    fileList = ek.ek(os.listdir, dirName)
+    # wait if any file was modified in the last 15 seconds. it might still be open for writing.
+    while True:
+        fileList = ek.ek(os.listdir, dirName)
+        waiting = False
+        for filename in fileList:
+            filename = ek.ek(os.path.join, dirName, filename)
+            ctime = max(os.path.getctime(filename), os.path.getmtime(filename))
+            if time.time() > ctime > time.time() - 15:
+                time.sleep(max(time.time() - ctime, 0))
+                waiting = True
+                break
+        if not waiting:
+            break
 
     # split the list into video files and folders
     folders = filter(lambda x: ek.ek(os.path.isdir, ek.ek(os.path.join, dirName, x)), fileList)
@@ -91,7 +103,7 @@ def processDir (dirName, nzbName=None, recurse=False, check_ctime=False):
     # recursively process all the folders
     for curFolder in folders:
         returnStr += logHelper(u"Recursively processing a folder: "+curFolder, logger.DEBUG)
-        returnStr += processDir(ek.ek(os.path.join, dirName, curFolder), recurse=True, check_ctime=check_ctime)
+        returnStr += processDir(ek.ek(os.path.join, dirName, curFolder), recurse=True)
 
     remainingFolders = filter(lambda x: ek.ek(os.path.isdir, ek.ek(os.path.join, dirName, x)), fileList)
 
@@ -103,13 +115,6 @@ def processDir (dirName, nzbName=None, recurse=False, check_ctime=False):
     for cur_video_file_path in videoFiles:
 
         cur_video_file_path = ek.ek(os.path.join, dirName, cur_video_file_path)
-
-        if check_ctime:
-            # ignore if file was modified within 60 seconds. it might still be being written to.
-            ctime = max(os.path.getctime(cur_video_file_path), os.path.getmtime(cur_video_file_path))
-            if ctime > time.time() - 60:
-                returnStr += logHelper(u"File might still be being written to (modified %s). Ignoring for now: %s" % (time.ctime(ctime), cur_video_file_path))
-                return returnStr
 
         try:
             processor = postProcessor.PostProcessor(cur_video_file_path, nzbName)
